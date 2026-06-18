@@ -66,6 +66,10 @@ $$\text{计算方法：原始归一化屏幕坐标} \times \text{显示器物理
 
 $$\text{计算方法：} gaze\_x\_screen\_cm \times \frac{2560}{52.7} \,,\quad gaze\_y\_screen\_cm \times \frac{1440}{29.6}$$
 
+* **`table_pupil_timestamp` / `screen_pupil_timestamp` (float64)**：分别来自 `table/pupil_info.csv` 与 `screen/pupil_info.csv` 的原始时间戳，用于保留瞳孔测量的来源时刻。
+* **`table_confidence_right` / `table_confidence_left` / `screen_confidence_right` / `screen_confidence_left` (float32)**：左右眼置信度。
+* **`table_diameter_right` / `table_diameter_left` / `screen_diameter_right` / `screen_diameter_left` (float32)**：左右眼瞳孔直径。
+
 
 
 #### D. 论文核心高级衍生标签

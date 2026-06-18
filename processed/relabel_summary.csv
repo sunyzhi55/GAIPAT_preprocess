@@ -1,0 +1,9 @@
+event,cluster_name,new_label,action,count
+grasp,Distracted,0,copied,29
+grasp,Focused,1,copied,204
+grasp,Wandering,2,discarded,765
+grasp,Searching,3,discarded,893
+release,Distracted,0,copied,46
+release,Wandering,0,copied,482
+release,Focused,1,copied,434
+release,Searching,2,discarded,1400

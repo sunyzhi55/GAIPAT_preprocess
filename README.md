@@ -1,240 +1,299 @@
-# GAIPAT: Dataset on Human Gaze and Actions for Intent Prediction in Assembly Tasks
+# GAIPAT 注视序列数据处理流程
 
-## 2026.05.19 记录
+本项目基于 GAIPAT 数据集进行注视视线与注意状态分析。当前代码重点完成从原始 GAIPAT 数据到定长 JSONL 序列、聚类、重打标签的完整预处理流程。
 
-script 文件夹下存放着一些与数据集相关的脚本，主要包括：
+GAIPAT 是一个用于装配任务意图预测的数据集，包含参与者在 LEGO Duplo 装配任务中的桌面注视点、屏幕注视点、瞳孔信息、事件、任务状态和成功/失败标签。
 
-1、`gaipat_master_dataframe_pipeline.py`：用于将原始数据处理成 master dataframe 的脚本，master dataframe 是一个包含所有参与者、所有任务、所有时间点的综合数据表，方便后续分析和建模。
+## 目录说明
 
-2、`visualize_task_gazepoints.py`：用于将 GAIPAT 实验中的积木指令和参与者眼动数据可视化为视频的脚本，详细说明见 `VISUALIZATION_README.md`。
+```text
+preprocess_script/
+  01_extract_unified_data_pipeline.py
+  02_slice_dataframes.py
+  03_compute_block_deviation_sequences.py
+  04_cluster_deviation_sequences.py
+  05_normalize_deviation_jsonl_sequences.py
+  06_relabel_sequences_from_clusters.py
 
-`VISUALIZATION_README.md`：一个专门介绍数据可视化脚本的说明文档，详细描述了如何使用 `visualize_task_gazepoints.py` 脚本来将眼动数据和任务指令可视化成视频。
-
-3、`gai_success_export.py`: 用于从 GAIPAT 数据集中提取成功完成任务的样本数据的脚本，方便后续分析和建模。（按照每个任务指示，对比每个参与者 table/states.csv 文件的最后一行 和 setup/instructions_{task_name}.csv 文件得到，分析每个积木是否正确放置到指定位置来判断当前任务完成情况）
-
-## 以下是整体说明
-gitlab: https://gricad-gitlab.univ-grenoble-alpes.fr/eyesofcobot/gaipat
-
-> The complete ACM datasheet is available [here](datasheet.md)
-## Description
-
-This project contains a dataset of oculometric data obtained during figure assembly using [Lego Duplo](https://www.lego.com/fr-fr/themes/duplo?consent-modal=show&age-gate=grown_up).
-
-This dataset was built to study the ocular behavior of human operators during assembly tasks, with the aim of predicting future actions of a human operator in the context of human-cobot collaboration.
-
-## Data Acquisition
-
-### Objective
-
-The aim of this study is to evaluate the performance of different eye movement measurement devices for intent predictions during assembly tasks in a simulated industrial context. Assembly tasks are simulated by building simple structures with Lego Duplo blocks. Our study focuses on the accuracy obtained with each device.
-
-### Experimental Setup & Materials
-
-The workspace consists of two main components: an assembly table and an instruction screen. The assembly table includes a green plate with a central assembly area and storage sections for construction blocks on either side. The blocks (Lego Duplo) are organized by color (blue, red, yellow, or indigreen) and shape (cube or brick) to facilitate easy identification, mirroring industry-standard workspaces.
-
-![Workspace](.docs/pics/setup.png "Workspace")
-
-Participants performed assembly tasks in both sitting and standing positions to cover a broad range of industrial scenarios. The table height was adjusted for each participant in accordance with the European ergonomic standard ISO-14738.
-
-Participants were unfamiliar with the specific assemblies they needed to complete, which were communicated to them through an instruction screen. This screen, positioned next to the table, is operated via buttons located underneath to avoid disrupting the assembly process.
-
-Two different eye-tracking configurations were used in the dataset to record human gaze:
-
-1. ***Remote configuration:*** In this setup, devices are positioned at various locations within the participant’s workspace. We used the [Fovio FX3](https://www.eyetracking.com/fx3-remote-eye-tracking/) and the [Tobii 4C](https://help.tobii.com/hc/en-us/sections/360001811457-Tobii-Eye-Tracker-4C). The Fovio FX3 tracked eye movements on the table. We selected this remote eye-tracker for its ability to monitor horizontal areas, unlike most devices designed for vertical screens. According to Fovio’s documentation, it is positioned at the bottom of the table to avoid eyebrow occlusion and ensure effective calibration. However, user arm movements may obstruct tracking. Data from the Fovio FX3 were recorded using [Fovio’s Eyeworks software](https://www.eyetracking.com/eyeworks-software/). The Tobii 4C --upgraded with an 'analytical use' license-- tracked eye movements on the instruction screen. Initially designed for gaming, the Tobii 4C is less accurate than other Tobii models but is more tolerant of head movement and supports a greater distance between the tracker and participants. Tobii 4C data were collected using custom Python scripts.
-2. ***Head-mounted configuration:*** In this setup, participants wore [Pupil Labs Core eye-tracking glasses](https://pupil-labs.com/products/core), equipped with a scene camera above the right eye and two infrared cameras to measure eye movement. We used [AprilTag](https://github.com/AprilRobotics/apriltag-imgs) markers from the 'tag36h11' family to map the assembly workspace to the scene camera. The [Pupil Labs Capture software](https://docs.pupil-labs.com/core/software/pupil-capture/) was used for scene mapping, device calibration, and data collection.
-
-### Participants
-
-We recruited 80 psychology students who volunteered to participate in the study, divided into four groups of 20 based on the remote and head-mounted configurations, with participants either standing or sitting. No personal data (e.g., gender, age, health) was collected. Participants were compensated with experience points for their semester exams. The inclusion criteria required participants to be able to read and understand instructions in French and physically move construction blocks. Since the tasks could be performed while either sitting or standing, the ability to stand was not a criterion for inclusion.
-
-### Procedure
-
-Participants performed assembly tasks while their eyes and hands movements were tracked by various sensors. The difficulty of the figures was varied by adjusting the number of construction blocks used, as well as by incorporating both 2D and 3D figures.
-
-![Figures](.docs/pics/figures.png "Figures")
-
-Instructions for assembling these figures were displayed on a separate screen. The experimental procedure was the same for all participants and figures:
-
-1. The eye-tracking device was calibrated and the calibration validated. If calibration quality was insufficient, this step was repeated. Manufacturer's calibration and validation guidelines were followed. In cases where calibration could not be achieved, the experiment continued, but data were not recorded. For each task, eye movements were measured both on the assembly table and the screen. In the remote configuration, two devices were used and calibrated: one for the screen and one for the table.
-2. The participant's first instruction appeared on the screen, providing the context and showing the figure to be assembled. The experimenter placed the first construction block, and the remaining blocks were placed by the participant.
-3. At each step, a visual instruction indicated which construction block to pick up and where to place it in the assembly. The instructions were structured such that, for each step, the block to be moved and its destination were highlighted. Additionally, to eliminate any ambiguity, an arrow indicated where to move the block. Each figure required six to twelve steps to complete. Participants advanced through each step by pressing a button located under the table.
-![Instructions](.docs/pics/instructions.png "Instructions")
-
-The entire procedure took around 5 minutes per figure, or 30 minutes for all the figures. Taking into account the welcoming of the participant, the collection of consent and the explanation of the experiment, the experiment lasted around 50 minutes per participant.
-
-### Software Used for Dataset Generation
-
-The software used for the dataset generation includes:
-
-- **Wearable eye-tracker**: Pupil Capture and Pupil Player software, version 3.5, GPL (https://docs.pupil-labs.com/core/)
-- **Remote eye-tracker**: EyeWorks software, version 3.30, an EyeTracking proprietary software, with Scene Camera and FaceKit modules (https://www.eyetracking.com/eyeworks-software/).
-
-Data collection was performed during the 2023-24 winter. We will include these details, along with the relevant licensing information, in the updated README file.
-
-### Specifications for Table, Light, and Screen
-
-- **Screen** (Dell P2416D): 52.7x29.6 cm (2560x1440 pixels)
-- **Plexiglass support table**: 100x50 cm
-- **LEGO assembly surface**: 76x38 cm
-
-### Demonstration
-
-> This video demonstrates the process of collecting eye-tracking data for the GAIPAT dataset, using a head-mounted eye tracker. It is important to note that this demonstration features an experimenter, not one of the study participants. The experimenter assembles the 'Car' figure, filmed from two different camera angles, while the eye data is captured using infrared cameras integrated into the eye tracker. The Pupil Capture software is used to record eye movements, and a screen capture of the software shows the scene being filmed, with a pink dot representing the gaze point, along with the control buttons. The assembly instructions for the figure are also visible in the video. Please note that for participants, no videos of the face, eyes, or body (except for the hands) were recorded, ensuring anonymity and data confidentiality.
-
-![](./.docs/pics/demo.mp4)
-
-## Dataset
-
-The file structure is as follows:
-
-```
-├── setup
-│   ├── blocks.csv
-│   ├── participants.csv
-│   ├── glasses.csv
-│   ├── instructions_{car,tb,house,tc,sc,tsb}.csv
-│   └── slides_{car,tb,house,tc,sc,tsb}.csv
-│              
-├── participants
-│   └── participant_id_XXX
-│         ├── table
-│         │   ├── gazepoints.csv
-│         │   ├── states.csv
-│         │   └── pupil_infos.zip
-│         └── screen
-│             ├── gazepoints.csv
-│             ├── states.csv
-│             └── pupil_infos.zip
-├── README.md
+cluster.md
+README.md
 ```
 
-The dataset designed for this study comprises data collected before and after the assembly of figures by participants. It is structured into two main categories: general data and assembly-specific data.
+主要中间结果目录通常为：
 
-### Setup Data
+```text
+extract_unified_data/
+slice_dataframes/
+block_deviation_sequences/
+cluster_results/
+normalized_deviation_jsonl_sequences/
+relabelled_sequences/
+```
 
-The setup data is located in the `setup` directory. It includes information collected before the figure assembly. The main files are:
+## 整体流程
 
-- `blocks.csv`: Contains descriptions of the blocks.
-- `instructions_{figure_name}.csv`: Provides instructions for assembling each figure.
-- `slides_{figure_name}.csv`: Describes the slides used during the figure assembly.
-- `participants.csv`: Contains descriptions of the participants.
-- `glasses.csv`: Lists the distribution of glasses and contact lenses worn by participants.
+### 01 构建统一 master dataframe
 
-#### Details of the Participants Data Files
+脚本：
 
-- `blocks.csv`
-  - `id`: Block ID [0, …, 23]
-  - `color`: Block color [blue, red, green, yellow]
-  - `shape`: Block shape [cube, brick]
+```bash
+python preprocess_script/01_extract_unified_data_pipeline.py --repo-root /path/to/gaipat
+```
 
-- `instructions_{figure_name}.csv`
-  - `id`: Instruction ID [0, …, n]. Instruction 0 was done by the experimenter.
-  - `block`: Block ID to move.
-  - `origin_[$(x_0, y_0), …, (x_3, y_3), level]`: Corners position, from the top left to the bottom left, before moving the block and the level, if previous instructions were correctly followed.
-  - `destination_[$(x_0, y_0), …, (x_3, y_3), level]`: Corners position, from the top left to the bottom left, after moving the block and the level, if the instruction was correctly followed.
+作用：
 
-  Positions are relative.
+- 读取 GAIPAT 原始目录中的 `participants/` 和 `setup/`。
+- 合并 table/screen gaze、pupil、event、state、instruction 等信息。
+- 输出每个参与者每个任务的统一 master CSV。
 
-- `slides_{figure_name}.csv`
-  - `id`: Slide number [0, …, n].
-  - `title_[$(x_0, y_0), …, (x_3, y_3)]`: Corners position, from the top left to the bottom left, of the title AOI, i.e., the top instruction AOI.
-  - `block_[$(x_0, y_0), …, (x_3, y_3)]`: Corners position, from the top left to the bottom left, of the block to grasp AOI.
-  - `destination_[$(x_0, y_0), …, (x_3, y_3)]`: Corners position, from the top left to the bottom left, of the block destination AOI.
-  - `figure_[$(x_0, y_0), …, (x_3, y_3)]`: Corners position, from the top left to the bottom left, of the figure AOI. The figure AOI is the area where all the moved blocks and the destination of the block to move are located.
-  - `arrow_[$(x_0, y_0), …, (x_3, y_3)]`: Corners position, from the top left to the bottom left, of the arrow AOI.
+默认输出：
 
-  Positions are relative.
+```text
+extract_unified_data/
+```
 
-- `participants.csv`
-  - `id`: Participant ID.
-  - `setup`: [remote, head mounted].
-  - `position`: [sitting, standing].
-  - `pupil, fovio, tobi`: Calibration score [impossible, severe issues, slight issues, no issue] if applicable, NA otherwise. Qualitative data obtained via experimenter observations.
-  - `figure_name`: Data recorded [1: recorded, 0: not recorded].
+### 02 按 step / block / event 切片
 
-- `glasses.csv`
-  - `setup`: [remote, head mounted].
-  - `position`: [sitting, standing].
-  - `glasses`: Number of participants wearing glasses [0, …, n].
-  - `no_glasses`: Number of participants not wearing glasses [0, …, n].
+脚本：
 
+```bash
+python preprocess_script/02_slice_dataframes.py \
+  --repo-root /path/to/gaipat \
+  --input-dir /path/to/gaipat/extract_unified_data \
+  --output-dir /path/to/gaipat/slice_dataframes
+```
 
-### Participants Data
+作用：
 
-The participants data are located in the `participants/[participant_id]` directory. It is subdivided into two subdirectories for each figure:
+- 将 master dataframe 按 `step_id + block_id + event` 切成较短的时序片段。
+- 文件名格式为：
 
-- `participants/participant_id/figure_name/table`
-  - `gazepoints.csv`: Gazepoints on the table.
-  - `events.csv`: Events on the table.
-  - `states.csv`: Table state.
-  - `pupil_info.csv`: Pupil size and data confidence reported by the eye tracker.
+```text
+[subject_id]_[task]_[step]_[event]_[block_id]_[label].csv
+```
 
-- `participants/participant_id/figure_name/screen`
-  - `gazepoints.csv`: Gazepoints on the screen.
-  - `events.csv`: Events on the screen (Buttons).
-  - `states.csv`: Screen state.
-  - `pupil_info.csv`: Pupil size and data confidence reported by the eye tracker.
+其中 `label=1` 表示原始成功样本，`label=0` 表示原始失败样本。
 
-#### Details of Assembly Data Files
+### 03 计算注视偏差序列
 
-  - `gazepoints.csv`
-    - `timestamp`
-    - `(x, y)`: Gazepoint coordinates.
+脚本：
 
-    Data from different eye trackers have been standardized. Only the "both eye" gazepoint is retained because not all eye trackers can retrieve gazepoints for both eyes separately (Pupil). Where only "separate" gazepoints are provided (Fovio, Tobii), the "both eye" gazepoints have been calculated according to the manufacturer's recommendations. The data has been filtered according to the documentation of the various eye trackers. In the case of measurements without data: NaN was reported.
+```bash
+python preprocess_script/03_compute_block_deviation_sequences.py \
+  --repo-root /path/to/gaipat \
+  --input-dir /path/to/gaipat/slice_dataframes \
+  --output-dir /path/to/gaipat/block_deviation_sequences \
+  --include-failures
+```
 
-  - `pupil_info.csv`
-    - `timestamp`
-    - `{right, left}_diameter`: Right and left pupil diameter.
-    - `confidence`: The confidence index. These indices are not comparable across different eye trackers.
-    - For head mounted data, only a global confidence index is provided. For remote data, both left and right eye confidences are provided.
+作用：
 
-  - `events.csv`
-    - On the table:
-      - `timestamp`
-      - `event`: [start, grasp, release, end]
-      - `block`: Block ID
+- 计算注视点到目标积木区域的最短物理距离。
+- `grasp` 使用源目标偏差。
+- `release` 使用目标位置偏差。
+- 输出 JSONL，每行对应一个时间点。
 
-      The work zone, i.e., the location of the origin and/or destination of the manipulated block, can be found in the `state.csv` table, so this information is not duplicated here.
+核心字段：
 
-    - On the screen:
-      - `timestamp`
-      - `event`: [start, next, previous, end]
+```text
+timestamp
+event
+deviation_srt_cm
+deviation_dst_cm
+deviation_cm
+gaze_x_y_table_affine_cm
+target_x_y_table_srt_cm
+target_x_y_table_dst_cm
+```
 
-      Note: start and end events are identical on the table and on the screen.
+默认输出：
 
-  - `states.csv`
-    - On the table:
-      - `timestamp`
-      - For each block: `(x_0, y_0), …, (x_3, y_3), level, held` Corners positions, level, and a boolean indicating if the block is held by the participant.
+```text
+block_deviation_sequences/
+```
 
-    - On the screen:
-      - `timestamp`
-      - `id`: slide number.
+### 04 基于偏差序列聚类
 
-      The elements present on the screen are described in the `setup/slides_{figure_name}.csv` table, so there is no need to duplicate the information here.
+脚本：
 
-## Data Reproducibility
+```bash
+python preprocess_script/04_cluster_deviation_sequences.py \
+  --repo-root /path/to/gaipat \
+  --input-dir /path/to/gaipat/block_deviation_sequences \
+  --output-dir /path/to/gaipat/cluster_results \
+  --n-components 3
+```
 
-1. Raw data provided by eye trackers and use to compile this dataset are publicaly available on [gitlab](https://gricad-gitlab.univ-grenoble-alpes.fr/eyesofcobot/gaipat_rawdata)
-2. Scripts used to compile participants data are publicaly available at on [gitlab](https://gricad-gitlab.univ-grenoble-alpes.fr/eyesofcobot/gaipat_builder)
+作用：
 
-## Ethical Considerations
+- 每个 JSONL 文件视为一个切片样本。
+- 从 `deviation_cm` 提取 10 个统计/时序特征。
+- `grasp` 和 `release` 分开训练 GMM。
+- 使用 Yeo-Johnson 标准化后聚类。
+- 失败样本 `label=0` 会被硬覆盖为 `Distracted`。
 
-This experimental protocol was submitted to and validated by CERGA, the Grenoble Alpes University ethics committee, and received the favorable opinion CERGA-Avis-2023-32.
+主要输出：
 
-## Authors and acknowledgment
+```text
+cluster_results/
+  cluster_raw_features.csv
+  cluster_assignments.csv
+  cluster_summary.csv
+  cluster_mean_curves.csv
+  grasp_gmm_model.pkl
+  release_gmm_model.pkl
+```
 
-This dataset is a part of the LIG-SIC Eyes-Of-Cobot Project.
-- Maxence Grand, Maxence.Grand@univ-grenoble-alpes.fr, Université Grenoble Alpes, Laboratoire d'Informatique de Grenoble, Teams Marvin/M-PSI
-- Damien Pellier, Damien.Pellier@univ-grenoble-alpes.fr, Université Grenoble Alpes, Laboratoire d'Informatique de Grenoble, Team Marvin
-- Francis Jambon, Francis.Jambon@univ-grenoble-alpes.fr, Université Grenoble Alpes, Laboratoire d'Informatique de Grenoble, Team M-PSI
+### 05 JSONL 序列长度归一化
 
-## Maintenance \& Contact
-For questions or more information, please contact:
-- Maxence Grand
-- Maxence.Grand@univ-grenoble-alpes.fr
-- Université Grenoble Alpes, Laboratoire d'Informatique de Grenoble, Teams Marvin/M-PSI
+脚本：
 
-## License
-This project is under the GNU LGPL 2.1 license.
+```bash
+python preprocess_script/05_normalize_deviation_jsonl_sequences.py \
+  --method arithmetic_mean \
+  --input-dir /path/to/gaipat/block_deviation_sequences \
+  --output-dir /path/to/gaipat/normalized_deviation_jsonl_sequences \
+  --arithmetic-target-length 100
+```
+
+作用：
+
+- 将不同长度的 JSONL 时序序列重采样为固定长度。
+- 输出仍为 JSONL。
+- 原始字段尽量保留：
+  - 数值标量线性插值；
+  - 固定形状数值数组逐元素插值；
+  - 目标多边形等几何字段若恒定则重复，否则写 `null`；
+  - 不适合插值的类别/混合字段写 `null` 或重复常量。
+
+推荐后续模型使用：
+
+```text
+normalized_deviation_jsonl_sequences/arithmetic_mean/normalized_sequences/
+```
+
+### 06 根据聚类结果重打标签
+
+脚本：
+
+```bash
+python preprocess_script/06_relabel_sequences_from_clusters.py \
+  --cluster-results-dir /path/to/gaipat/cluster_results \
+  --source-dir /path/to/gaipat/normalized_deviation_jsonl_sequences/arithmetic_mean/normalized_sequences \
+  --output-dir /path/to/gaipat/relabelled_sequences
+```
+
+作用：
+
+- 根据 `cluster_assignments.csv` 中的聚类结果重新定义标签。
+- 将归一化后的 JSONL 文件复制到新目录。
+- `grasp` 和 `release` 分开保存。
+- 文件名仍保持：
+
+```text
+[subject_id]_[task]_[step]_[event]_[block_id]_[label].jsonl
+```
+
+当前标签规则：
+
+| event | cluster_name | 新 label | 含义 |
+|---|---|---:|---|
+| release | Focused | 1 | 专注 |
+| release | Distracted | 0 | 分心 |
+| release | Wandering | 0 | 分心 |
+| release | Searching | 2 | 丢弃 |
+| grasp | Focused | 1 | 专注 |
+| grasp | Distracted | 0 | 分心 |
+| grasp | Wandering | 2 | 丢弃 |
+| grasp | Searching | 3 | 丢弃 |
+
+默认只复制 `label=0/1` 的可训练样本，`label=2/3` 只记录到审计表。如需复制丢弃类用于人工检查，添加：
+
+```bash
+--copy-discarded
+```
+
+最终输出：
+
+```text
+relabelled_sequences/
+  grasp/
+    *_0.jsonl
+    *_1.jsonl
+  release/
+    *_0.jsonl
+    *_1.jsonl
+  relabel_audit.csv
+  relabel_summary.csv
+```
+
+## 推荐运行顺序
+
+```bash
+python preprocess_script/01_extract_unified_data_pipeline.py --repo-root /path/to/gaipat
+
+python preprocess_script/02_slice_dataframes.py \
+  --repo-root /path/to/gaipat
+
+python preprocess_script/03_compute_block_deviation_sequences.py \
+  --repo-root /path/to/gaipat \
+  --include-failures
+
+python preprocess_script/05_normalize_deviation_jsonl_sequences.py \
+  --method arithmetic_mean \
+  --repo-root /path/to/gaipat \
+  --arithmetic-target-length 100
+
+python preprocess_script/04_cluster_deviation_sequences.py \
+  --repo-root /path/to/gaipat \
+  --input-dir /path/to/gaipat/normalized_deviation_jsonl_sequences/arithmetic_mean/normalized_sequences \
+  --output-dir /path/to/gaipat/cluster_results
+
+python preprocess_script/06_relabel_sequences_from_clusters.py \
+  --cluster-results-dir /path/to/gaipat/cluster_results \
+  --source-dir /path/to/gaipat/normalized_deviation_jsonl_sequences/arithmetic_mean/normalized_sequences \
+  --output-dir /path/to/gaipat/relabelled_sequences
+```
+
+## 依赖
+
+基础流程：
+
+```bash
+pip install numpy pandas shapely scikit-learn
+```
+
+如需 DBA 平均序列：
+
+```bash
+pip install tslearn
+```
+
+如需绘制聚类曲线图：
+
+```bash
+pip install matplotlib
+```
+
+## 最终可用数据
+
+用于后续训练/分析的推荐目录：
+
+```text
+relabelled_sequences/
+```
+
+其中：
+
+- `grasp/`：抓取阶段样本；
+- `release/`：放置阶段样本；
+- 文件名最后一位 `0` 表示分心，`1` 表示专注。
+
+审计文件：
+
+```text
+relabel_audit.csv
+relabel_summary.csv
+```
+
+用于检查每个样本的原聚类标签、新标签和复制状态。

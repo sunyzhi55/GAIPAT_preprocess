@@ -2,7 +2,7 @@
 
 ## 脚本
 
-`gaipat_master_dataframe_pipeline.py` - 完整的多模态数据融合流水线
+`01_extract_unified_data_pipeline.py` - 完整的多模态数据融合流水线
 
 ## 概述
 
@@ -29,25 +29,25 @@
 ### 处理单个参与者
 
 ```bash
-python gaipat_master_dataframe_pipeline.py \
+python preprocess_script/01_extract_unified_data_pipeline.py \
     --repo-root d:\code\gaipat \
     --subject-id 69907732
 ```
 
 ### 处理所有参与者
 ```bash
-python script/gaipat_master_dataframe_pipeline.py --repo-root /root/autodl-tmp/shenxy/XDU/Dataset/gaipat/
+python preprocess_script/01_extract_unified_data_pipeline.py --repo-root /root/autodl-tmp/shenxy/XDU/Dataset/gaipat/
 ```
 
 ```bash
-python gaipat_master_dataframe_pipeline.py \
+python preprocess_script/01_extract_unified_data_pipeline.py \
     --repo-root d:\code\gaipat
 ```
 
 ### 指定输出目录
 
 ```bash
-python gaipat_master_dataframe_pipeline.py \
+python preprocess_script/01_extract_unified_data_pipeline.py \
     --repo-root d:\code\gaipat \
     --output-dir d:\code\gaipat\my_output
 ```
@@ -57,7 +57,7 @@ python gaipat_master_dataframe_pipeline.py \
 ### 输出位置
 
 ```
-processed/master_dataframes/{subject_id}/{task}_master.csv
+extract_unified_data/
 ```
 
 ### 列定义
@@ -78,9 +78,21 @@ processed/master_dataframes/{subject_id}/{task}_master.csv
 |------|------|------|
 | `gaze_x_table_rel`, `gaze_y_table_rel` | [0,1] | 桌面相对坐标 |
 | `gaze_x_table_cm`, `gaze_y_table_cm` | cm | 桌面物理坐标 |
+| `gaze_x_table_affine_cm`, `gaze_y_table_affine_cm` | cm | 由屏幕物理坐标通过仿射变换映射得到的桌面坐标 |
 | `gaze_x_screen_rel`, `gaze_y_screen_rel` | [0,1] | 屏幕相对坐标 |
 | `gaze_x_screen_cm`, `gaze_y_screen_cm` | cm | 屏幕物理坐标 |
 | `gaze_x_screen_px`, `gaze_y_screen_px` | px | 屏幕像素坐标 |
+
+#### 瞳孔与置信度数据
+
+| 列名 | 单位 | 说明 |
+|------|------|------|
+| `table_pupil_timestamp` | ms | table/pupil_info.csv 的原始时间戳 |
+| `table_confidence_right`, `table_confidence_left` | - | table/pupil_info.csv 的左右眼置信度 |
+| `table_diameter_right`, `table_diameter_left` | - | table/pupil_info.csv 的左右眼瞳孔直径 |
+| `screen_pupil_timestamp` | ms | screen/pupil_info.csv 的原始时间戳 |
+| `screen_confidence_right`, `screen_confidence_left` | - | screen/pupil_info.csv 的左右眼置信度 |
+| `screen_diameter_right`, `screen_diameter_left` | - | screen/pupil_info.csv 的左右眼瞳孔直径 |
 
 #### 目标积木坐标
 
@@ -117,6 +129,26 @@ sc:    1411 rows ✓
 tc:    1236 rows ✓
 tsb:   2238 rows ✓
 ```
+
+## 失败片段导出
+
+在 `gaipat_master_dataframe_pipeline.py` 中，脚本会为每个参与者、每个任务额外导出 `is_success == 0` 的连续片段：
+
+- 如果某个任务没有任何 `is_success == 0` 的连续片段，则不会生成对应的失败片段 CSV；
+- 如果存在失败片段，则会生成 `{task}_failed_segments.csv`；
+- 所有参与者与任务的导出统计会汇总到 `processed/master_dataframes/failure_segments_summary.csv`。
+
+汇总文件包含以下字段：
+
+| 列名 | 说明 |
+|------|------|
+| `subject_id` | 参与者 ID；总计行为 `__TOTAL__` |
+| `task` | 任务名；总计行为 `__TOTAL__` |
+| `master_rows` | 主表行数 |
+| `failure_rows` | 失败片段总行数 |
+| `failure_segments` | 连续失败片段数 |
+| `failure_exported` | 是否生成失败片段文件（1/0） |
+| `failure_file` | 失败片段文件路径；若未导出则为空 |
 
 ## 环境常量
 
@@ -160,8 +192,10 @@ LEGO 装配表面:
 processed/master_dataframes/
 ├── 69907732/
 │   ├── car_master.csv (1918 rows × 33 cols)
+│   ├── car_failed_segments.csv (if any failure segments exist)
 │   ├── house_master.csv (1571 rows × 33 cols)
 │   ├── ...
+├── failure_segments_summary.csv
 └── pipeline.log
 ```
 
