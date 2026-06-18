@@ -174,6 +174,32 @@ normalized_deviation_jsonl_sequences/arithmetic_mean/normalized_sequences/
 
 ### 06 根据聚类结果重打标签
 
+
+
+1、聚类结果
+
+Grasp事件:
+
+
+
+<div align="center">
+  <img src="./assets/grasp_cluster_mean_curves.png" width="100%" alt="Banner Image" />
+</div>
+
+
+
+Release事件：
+
+
+
+<div align="center">
+  <img src="./assets/release_cluster_mean_curves.png" width="100%" alt="Banner Image" />
+</div>
+
+
+
+
+
 脚本：
 
 ```bash
